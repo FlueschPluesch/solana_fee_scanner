@@ -33,7 +33,7 @@ const apiLimiter = rateLimit({
     legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
-// Anwendung der Rate-Limiting-Middleware nur auf die API-Route
+// Application of the rate-limiting middleware to the API route only.
 app.use('/api', apiLimiter);
 
 // Middleware to check Token
@@ -106,7 +106,7 @@ const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-b
 async function collectAndProcessBlocks() {
 
     try {
-        // Die aktuelle Block-ID abrufen
+        // Retrieve the current block-id.
         const currentBlockId = await connection.getSlot();
 
         if (currentBlockId !== lastBlockId) {
@@ -121,34 +121,34 @@ async function collectAndProcessBlocks() {
 
                 if (logBlocks === true) {
 
-                    // Blockdaten in eine Log-Datei schreiben
+                    // Write block data to a log file.
                     const logFilePath = path.join(__dirname, 'blockDataLog.txt');
 
                     fs.appendFile(logFilePath, JSON.stringify(blockContent, null, 2) + '\n\n', (err) => {
                         if (err) throw err;
-                        console.log('Blockdaten wurden der Log-Datei hinzugefügt.');
+                        console.log('Block data has been added to the log file.');
                     });
 
                 }
 
-                // Neuesten Block zum Array hinzufügen
+                // Add the latest block to the array.
                 collectedBlocks.push(blockContent);
 
-                // Array auf die letzten N Blöcke beschränken
+                // Limit the array to the last N blocks.
                 if (collectedBlocks.length > numberOfBlocksToConsider) {
-                    collectedBlocks.shift(); // Ältesten Block entfernen, wenn das Limit überschritten wird
+                    collectedBlocks.shift(); // Remove the oldest block if the limit is exceeded.
                 }
 
-                // Statistiken berechnen und ausgeben
+                // Calculate and output/save statistics.
                 calculateAndPrintStats();
             }
 
-            // Die zuletzt abgerufene Block-ID aktualisieren
+            // Update the last retrieved block-id.
             lastBlockId = currentBlockId;
 
         } else {
 
-            console.log(`Block-ID ${currentBlockId} hat sich nicht geändert. Kein erneutes Herunterladen.`);
+            console.log(`Block-ID ${currentBlockId} has not changed. No re-download.`);
 
         }
 
@@ -156,7 +156,7 @@ async function collectAndProcessBlocks() {
 
     } catch (error) {
 
-        console.error('Fehler beim Abrufen oder Verarbeiten der Blockinhalte:', error);
+        console.error('Error in retrieving or processing the block contents:', error);
 
         setTimeout(collectAndProcessBlocks, (tickRate * 1000));
 
@@ -189,14 +189,14 @@ function calculateAndPrintStats() {
     minComputeUnits = Math.min(...computeUnitsArray);
     maxComputeUnits = Math.max(...computeUnitsArray);
 
-    console.log(`Aggregierte Statistiken für die letzten ${collectedBlocks.length} Blöcke:`);
-    console.log(`Gesamtzahl der Transaktionen: ${totalTransactions}`);
-    console.log(`Durchschnittliche Gebühren: ${averageFees.toFixed(2)} Lamports`);
-    console.log(`Durchschnittliche Compute Units: ${averageComputeUnits.toFixed(2)}`);
-    console.log(`Minimale Gebühren: ${minFees} Lamports`);
-    console.log(`Maximale Gebühren: ${maxFees} Lamports`);
-    console.log(`Minimale Compute Units: ${minComputeUnits}`);
-    console.log(`Maximale Compute Units: ${maxComputeUnits}`);
+    console.log(`Aggregated statistics for the last ${collectedBlocks.length} blocks:`);
+    console.log(`Total number of transactions: ${totalTransactions}`);
+    console.log(`Average fees: ${averageFees.toFixed(2)} Lamports`);
+    console.log(`Average Compute Units: ${averageComputeUnits.toFixed(2)}`);
+    console.log(`Minimum fees: ${minFees} Lamports`);
+    console.log(`Maximum fees: ${maxFees} Lamports`);
+    console.log(`Minimum Compute Units: ${minComputeUnits}`);
+    console.log(`Maximum Compute Units: ${maxComputeUnits}`);
     console.log(`-------------------------------------------\n`);
 }
 
