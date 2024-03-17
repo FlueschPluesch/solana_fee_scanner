@@ -1,6 +1,6 @@
 # Solana Fee Scanner - SFS
 
-### Returns fee and cu stats of the latest Solana-Blocks.
+### Returns fee and cu stats of the latest Solana-Blocks (min, max, average).
 
 1. Install: npm install
 2. Edit config: .env
