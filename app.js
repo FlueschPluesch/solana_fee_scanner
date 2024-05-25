@@ -6,21 +6,28 @@ const rateLimit = require('express-rate-limit');
 const solanaWeb3 = require('@solana/web3.js');
 
 const port = process.env.SERVER_PORT; 
-const logBlocks = process.env.LOG_BLOCKS;
+const logBlocks = JSON.parse(process.env.LOG_BLOCKS);
 const tickRate = process.env.TICK_RATE; 
 const numberOfBlocksToConsider = process.env.NUMBER_OF_BLOCKS_TO_CONSIDER;
 const accessToken = process.env.ACCESS_TOKEN;
+const printStats = JSON.parse(process.env.PRINT_STATS);
 
 const app = express();
 let collectedBlocks = [];
 let lastBlockId = null;
 
-let averageFees = 0;
-let averageComputeUnits = 0;
-let minFees = 0;
-let maxFees = 0;
-let minComputeUnits = 0;
-let maxComputeUnits = 0;
+let blockInfo = {
+	
+	averageFees : 0,
+	averageComputeUnits : 0,
+	averageFeesPerComputeUnit : 0,
+	averageFeesPerComputeUnitMicro : 0,
+	minFees : 0,
+	maxFees : 0,
+	minComputeUnits : 0,
+	maxComputeUnits : 0
+	
+}
 
 app.use(express.json());
 
@@ -64,12 +71,8 @@ app.get('/api', tokenMiddleware, (req, res) => {
         case 'getFeeStats':
 
             response = {
-                averageFees: averageFees,
-                averageComputeUnits: averageComputeUnits,
-                minFees: minFees,
-                maxFees: maxFees,
-                minComputeUnits: minComputeUnits,
-                maxComputeUnits: maxComputeUnits
+				timeStamp : new Date().toLocaleString(),
+				data : blockInfo
             };
 
             break;
@@ -80,10 +83,7 @@ app.get('/api', tokenMiddleware, (req, res) => {
 
     }
 
-    res.json({
-        data: response,
-        query: { get },
-    });
+    res.json(response);
 
 });
 
@@ -102,6 +102,53 @@ app.listen(port, () => {
 
 //Init Solana connection
 const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'), 'confirmed');
+
+function calculateStats() {
+
+    let totalTransactions = 0;
+    let totalFeesLamports = 0;
+    let totalComputeUnits = 0;
+    let feesArray = [];
+    let computeUnitsArray = [];
+
+    collectedBlocks.forEach(block => {
+        block.transactions.forEach(({ meta }) => {
+            totalTransactions += 1;
+            totalFeesLamports += meta.fee;
+            totalComputeUnits += meta.computeUnitsConsumed;
+            feesArray.push(meta.fee);
+            computeUnitsArray.push(meta.computeUnitsConsumed);
+        });
+    });
+
+    blockInfo.averageFees = totalFeesLamports / totalTransactions;
+    blockInfo.averageComputeUnits = totalComputeUnits / totalTransactions;
+    blockInfo.averageFeesPerComputeUnit = totalFeesLamports / totalComputeUnits;
+    blockInfo.averageFeesPerComputeUnitMicro = parseInt(blockInfo.averageFeesPerComputeUnit * 1000000);
+    blockInfo.minFees = Math.min(...feesArray);
+    blockInfo.maxFees = Math.max(...feesArray);
+    blockInfo.minComputeUnits = Math.min(...computeUnitsArray);
+    blockInfo.maxComputeUnits = Math.max(...computeUnitsArray);
+	
+	return totalTransactions;
+    
+}
+
+
+function printStatsTerminal(totalTransactions) {
+	
+	console.log(`Aggregated statistics for the last ${collectedBlocks.length} blocks:`);
+    console.log(`Total number of transactions: ${totalTransactions}`);
+    console.log(`Average fees: ${blockInfo.averageFees.toFixed(2)} Lamports`);
+    console.log(`Average Compute Units: ${blockInfo.averageComputeUnits.toFixed(2)}`);
+    console.log(`Average fees per Compute Unit: ${blockInfo.averageFeesPerComputeUnit.toFixed(2)} Lamports / ${blockInfo.averageFeesPerComputeUnitMicro} MicroLamports`);
+    console.log(`Minimum fees: ${blockInfo.minFees} Lamports`);
+    console.log(`Maximum fees: ${blockInfo.maxFees} Lamports`);
+    console.log(`Minimum Compute Units: ${blockInfo.minComputeUnits}`);
+    console.log(`Maximum Compute Units: ${blockInfo.maxComputeUnits}`);
+    console.log(`-------------------------------------------\n`);
+	
+}
 
 async function collectAndProcessBlocks() {
 
@@ -126,7 +173,7 @@ async function collectAndProcessBlocks() {
 
                     fs.appendFile(logFilePath, JSON.stringify(blockContent, null, 2) + '\n\n', (err) => {
                         if (err) throw err;
-                        console.log('Block data has been added to the log file.');
+                        console.log('\nBlock data has been added to the log file.\n');
                     });
 
                 }
@@ -140,7 +187,18 @@ async function collectAndProcessBlocks() {
                 }
 
                 // Calculate and output/save statistics.
-                calculateAndPrintStats();
+				
+				if (printStats === true) {
+					
+					let totalTransactions = calculateStats();
+					printStatsTerminal(totalTransactions);
+					
+				} else {
+
+					calculateStats();
+					
+				}
+				
             }
 
             // Update the last retrieved block-id.
@@ -162,42 +220,6 @@ async function collectAndProcessBlocks() {
 
     }
 
-}
-
-function calculateAndPrintStats() {
-
-    let totalTransactions = 0;
-    let totalFeesLamports = 0;
-    let totalComputeUnits = 0;
-    let feesArray = [];
-    let computeUnitsArray = [];
-
-    collectedBlocks.forEach(block => {
-        block.transactions.forEach(({ meta }) => {
-            totalTransactions += 1;
-            totalFeesLamports += meta.fee;
-            totalComputeUnits += meta.computeUnitsConsumed;
-            feesArray.push(meta.fee);
-            computeUnitsArray.push(meta.computeUnitsConsumed);
-        });
-    });
-
-    averageFees = totalFeesLamports / totalTransactions;
-    averageComputeUnits = totalComputeUnits / totalTransactions;
-    minFees = Math.min(...feesArray);
-    maxFees = Math.max(...feesArray);
-    minComputeUnits = Math.min(...computeUnitsArray);
-    maxComputeUnits = Math.max(...computeUnitsArray);
-
-    console.log(`Aggregated statistics for the last ${collectedBlocks.length} blocks:`);
-    console.log(`Total number of transactions: ${totalTransactions}`);
-    console.log(`Average fees: ${averageFees.toFixed(2)} Lamports`);
-    console.log(`Average Compute Units: ${averageComputeUnits.toFixed(2)}`);
-    console.log(`Minimum fees: ${minFees} Lamports`);
-    console.log(`Maximum fees: ${maxFees} Lamports`);
-    console.log(`Minimum Compute Units: ${minComputeUnits}`);
-    console.log(`Maximum Compute Units: ${maxComputeUnits}`);
-    console.log(`-------------------------------------------\n`);
 }
 
 // Start collecting block-data
